@@ -1,4 +1,5 @@
 const https = require('https');
+const rx = require('rxjs');
 
 /**
  *  PUBG API wrapper
@@ -13,7 +14,9 @@ class PubgApi {
   /**
   * Sets up the api key to use, and the default shard to request.
   * @param {string} apiKey - The api key used to request the PUBG API.
-  * @param {string} defaultShard - The default shard, or server to request :
+  * @param {string} options - An object with options to pass to the api.
+  *   **asyncType** : 'promise' or 'observable'
+  *   **defaultShard** :  the default shard, or server to request :
   *  - xbox-as - Asia
   *  - xbox-eu - Europe
   *  - xbox-na - North America
@@ -29,13 +32,28 @@ class PubgApi {
   *
   * @returns The instance of pubgapi, set up correctly.
   */
-  constructor(apiKey, defaultShard = 'pc-na') {
+  constructor(apiKey, options = {
+    asyncType: 'promise',
+    defaultShard: 'pc-na',
+  }) {
     this.apiKey = undefined;
     this.apiURL = 'api.playbattlegrounds.com';
     this.telemetryURL = 'telemetry-cdn.playbattlegrounds.com';
-    this.defaultShard = 'pc-na';
+    this.defaultShard = options.defaultShard || 'pc-na';
+    this.asyncType = options.asyncType || 'promise';
     this.routesURI = {
       matches: 'matches',
+    };
+
+    if (this.asyncType !== 'promise' && this.asyncType !== 'observable') {
+      throw new Error('Unknown async type. Should be promise or observable');
+    }
+
+    this.wrapAsync = (promise) => {
+      if (this.asyncType === 'observable') {
+        return rx.Observable.fromPromise(promise);
+      }
+      return promise;
     };
 
     /**
@@ -113,7 +131,7 @@ class PubgApi {
       offset: 0,
       limit: 5,
       sort: 'createdAt',
-    }) => {
+    }, shard = this.defaultShard) => {
       const computedFilters = {};
       const paramFilters = {
         gameMode: 'filter[gameMode]',
@@ -129,11 +147,11 @@ class PubgApi {
           computedFilters[paramFilters[key]] = params[key];
         }
       });
-      return this.requestAPI(
-        defaultShard,
+      return this.wrapAsync(this.requestAPI(
+        shard,
         this.routesURI.matches,
         Object.keys(computedFilters).length ? computedFilters : undefined,
-      );
+      ));
     };
 
     /**
@@ -145,7 +163,8 @@ class PubgApi {
     *
     * @returns A Promise with the result or an error
     */
-    this.loadMatchById = matchId => this.requestAPI(defaultShard, this.routesURI.matches + matchId);
+    this.loadMatchById = (matchId, shard = this.defaultShard) =>
+      this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
 
     /**
     * Checks the health status of the api.
@@ -154,14 +173,14 @@ class PubgApi {
     *
     * @returns A promise with the result
     */
-    this.healthStatus = () => new Promise((resolve, reject) => {
+    this.healthStatus = () => this.wrapAsync(new Promise((resolve, reject) => {
       const req = https.get({
         hostname: this.apiURL,
         path: 'status',
         headers: { Accept: 'application/vnd.api+json' },
       }, success => resolve(success));
       req.on('error', e => reject(e));
-    });
+    }));
   }
 }
 
