@@ -79,6 +79,21 @@ To run the lint :
 
 Be sure to clean your code before submitting it.
 
+### Building
+
+To build the wrapper, run 
+  $ npm run build
+
+It will generate the file `lib/pubg-api.js` using babel.
+
+### Publishing
+
+Run
+
+  $ npm publish
+
+It will automatically check lint, unit tests and build the lib properly before publishing. The version must be bumped manually.
+
 ## Tests
 
 You can run the unit tests executing npm test. To execute the tests, you must provide an environnment variable `PUBG_API_KEY_TEST` set with the api key you want to use to run the tests. 

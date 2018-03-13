@@ -1,11 +1,13 @@
 {
   "name": "pubg-api",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "An open-source wrapper for the open PlayerUnknown's Battleground API",
-  "main": "index.js",
+  "main": "lib/pubg-api.js",
   "scripts": {
     "test": "mocha --reporter spec",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "build": "mkdir lib; babel ./src -o ./lib/pubg-api.js --source-maps",
+    "prepublish": "npm run lint && npm test && npm run build"
   },
   "keywords": [
     "pubg",
@@ -22,11 +24,21 @@
     "eslint": "^4.18.2",
     "https": "^1.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wobow/pubg-api.git"
+  },
+  "files": [
+    "lib"
+  ],
   "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
     "chai": "^4.1.2",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.9.0",
     "lodash": "^4.17.5",
+    "minifier": "^0.8.1",
     "mocha": "^5.0.4"
   }
 }
