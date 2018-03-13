@@ -13,12 +13,12 @@ It includes helpers to do the following :
 
 
 ## Table of contents
-- [Installation](#Installation)
-- [Usage](#Usage)
-- [Status](#Status)
-- [Contributing](#Contributing)
-- [Running tests](#Tests)
-- [Roadmap](#Roadmap)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Status](#status)
+- [Contributing](#contributing)
+- [Running tests](#tests)
+- [Roadmap](#roadmap--guidelines)
 
 ## Installation
 
