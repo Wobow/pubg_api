@@ -1,5 +1,5 @@
 # Nodejs Wrapper for the official PUBG API
-
+[![npm 0.0.5](https://img.shields.io/badge/npm-v0.0.5-brightgreen.svg)](https://www.npmjs.com/package/pubg-api)
 ## Intro
 This is a universal wrapper/client for the official [PlayerUnknown's BattleGround's API](https://developer.playbattlegrounds.com/) that runs on Node JS and the browser.
 
@@ -30,17 +30,36 @@ After installation, you can import the module to your project using require.
 ```javascript
 const Pubgapi = require('pubg-api');
 
-const apiInstance = new Pubgapi(apiKey);
+const apiInstance = new Pubgapi('<apiKey>');
 ```
 The module exposes a class that represents an instance of the api, given an [official API key](https://developer.playbattlegrounds.com/) that you must provide.
 
-You can then interract with the instance of the API. All routes use promises.
+You can then interract with the instance of the API. All routes use promises by defaut. 
 
 For example :
 ```javascript
 apiInstance
     .loadMatches(options)
     .then(matches => {
+        // success
+    }, err => {
+        // handle error
+    });
+```
+
+You can force the wrapper to return [rxjs' Observables](https://github.com/reactivex/rxjs) only by specifying with the asyncType options:
+```javascript
+const apiInstance = new PubgApi('<apiKey>', {asyncType: 'observable'});
+```
+or 
+```javascript
+apiInstance.asyncType = 'observable';
+```
+then
+```javascript
+apiInstance
+    .loadMatches(options) // <-- Now returns an Observable
+    .subscribe(matches => {
         // success
     }, err => {
         // handle error
@@ -79,22 +98,23 @@ To run the lint :
 
 Be sure to clean your code before submitting it.
 
-### Building
+### Building
 
 To build the wrapper, run 
-  $ npm run build
+
+    $ npm run build
 
 It will generate the file `lib/pubg-api.js` using babel.
 
-### Publishing
+### Publishing
 
 Run
 
-  $ npm publish
+    $ npm publish
 
 It will automatically check lint, unit tests and build the lib properly before publishing. The version must be bumped manually.
 
-## Tests
+## Tests
 
 You can run the unit tests executing npm test. To execute the tests, you must provide an environnment variable `PUBG_API_KEY_TEST` set with the api key you want to use to run the tests. 
 
@@ -108,6 +128,6 @@ The goal of this wrapper is to simplify access to the API, and give a broader sp
 This includes developping functions that computes multiple API calls and responses.
 
 - [ ] Implement [Telemetry](https://developer.playbattlegrounds.com/docs/en/telemetry.html) 
-- [ ] Implement [rxjs observable](https://github.com/reactivex/rxjs) alternative to promise
+- [x] Implement [rxjs observable](https://github.com/reactivex/rxjs) alternative to promise
 - [ ] Allow selecting a specific shard for each call, instead of setting a default shard
 - [ ] Wrap multiple shard functions
