@@ -1,5 +1,6 @@
 const expect = require('chai').expect;
-const api = new (require('../index'))('');
+const api = new (require('../src/index'))('');
+const env = process.env;
 
 describe('#testing status', function() {
     it('module exists', function() {
@@ -28,7 +29,8 @@ describe('#matches endpoint', function() {
         });
     });
     it('it should load 5 matches without filters', function(done) {
-        api.setAPIKey('sdf');
+        console.info('Using following api key :', env.PUBG_API_KEY_TEST);
+        api.setAPIKey(env.PUBG_API_KEY_TEST);
         api.loadMatches().then(res => {
             expect(res).to.not.be.null;
             done();
