@@ -8,6 +8,7 @@ const rx = require('rxjs');
  *  Append your name/pseudo + github account here
  *
  *  - Alan Balbo <alan.balbo@gmail.com> : https://github.com/Wobow
+ *  - Kyle Ruscigno <kyleruscigno@gmail.com> : https://github.com/kyleruscigno
  */
 
 class PubgApi {
@@ -164,7 +165,76 @@ class PubgApi {
     * @returns A Promise with the result or an error
     */
     this.loadMatchById = (matchId, shard = this.defaultShard) =>
-      this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
+      return this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
+
+
+    /**
+    * Need to wrap Telemetry Functions for RxJS
+    */
+
+    /**
+    * Queries an object of match data(s) for the Telemetry URL - or multiple if provided with multiple matches
+    *
+    * https://developer.playbattlegrounds.com/docs/en/telemetry.html#telemetry-events
+    *
+    * @param {object} parsedData - An object with match data attained through loadMatches, loadMatchByID or otherwise provided
+    *
+    * @returns A Promise with the result or an error
+    */
+    this.findTelemetryURLs = (parsedData) => new Promise((resolve, reject) => {
+      setTimeout(() => {
+        let assetData = parsedData.included;
+        let returnTelemetryURLs = [];
+        for each (obj in assetData){
+          if (obj.type == 'asset'){
+            returnTelemetryURLs.push(obj.attributes.URL)
+          }
+        }
+        if (!returnTelemetryURLs.length){
+          reject(new Error('No Telemetry URLs Found'));
+        }
+        resolve(returnTelemetryURLs);
+      }, 0);
+    });
+
+    /**
+    * Loads a single matches Telemetry Data, given the url.
+    *
+    * https://developer.playbattlegrounds.com/docs/en/telemetry.html#telemetry-events
+    *
+    * @param {string} url - The Telemetry URL of the match Telemetry to load
+    *
+    * @returns A Promise with the result or an error
+    */
+    this.loadTelemetry = (url) => new Promise((resolve, reject) => {
+      telemetryPath = url.replace(this.telemetryURL, '');
+      const headers = {
+        Accept: 'application/vnd.api+json',
+      };
+      let rawData = '';
+      const req = https.get({
+        hostname: this.telemetryURL,
+        path: url,
+        headers,
+      }, (res) => {
+        res.setEncoding('utf8');
+        res.on('data', (data) => {
+          rawData += data;
+        });
+        res.on('end', () => {
+          try {
+            const parsedData = JSON.parse(rawData);
+            if (res.statusCode >= 400) {
+              return reject(parsedData);
+            }
+            return resolve(parsedData);
+          } catch (err) {
+            return reject(err);
+          }
+        });
+      });
+      req.on('error', e => reject(e));
+    });
 
     /**
     * Checks the health status of the api.
@@ -185,3 +255,26 @@ class PubgApi {
 }
 
 module.exports = PubgApi;
+
+/**
+*=== Example Call Patterns ===
+*
+* const Pubgapi = require('pubg-api');
+* const apiInstance = new Pubgapi('<apiKey>');
+*
+* apiInstance
+*   .loadMatches(options)
+*   .then((matches) => {
+*     return findTelemetryURLs(matches);
+*   })
+*   .then((urls) => {
+*     return loadTelemetry(urls[0]);
+*   })
+*   .then((telemetry) => {
+*     //do something
+*   })
+*   .catch((err) => {
+*     console.error(err)
+*   });
+*
+*/
