@@ -72,8 +72,10 @@ This tab highlight the status of each route and function attached to it.
 
 | Route              | Function                     | Status           | Version     |
 |-------             |----------                    |--------          |---------    |
-| /matches           | `PubgApi.loadMatches`        | Up to date       | ^0.0.1      |
+| /matches           | `PubgApi.loadMatches`        | Deprecated       | ^0.0.1      |
 | /matches/{id}      | `PubgApi.loadMatchById`      | Up to date       | ^0.0.1      |
+| /players/          | `PubgApi.searchPlayers`      | Up to date       | ^1.0.0      |
+| /players/{id}      | `PubgApi.loadPlayerById`     | Up to date       | ^1.0.0      |
 | /status            | `PubgApi.healthStatus`       | Up to date       | ^0.0.1      |
 
 ## Contributing

@@ -1,5 +1,6 @@
 const https = require('https');
 const rx = require('rxjs');
+const mapParams = require('./mapParams.js');
 
 /**
  *  PUBG API wrapper
@@ -44,6 +45,7 @@ class PubgApi {
     this.asyncType = options.asyncType || 'promise';
     this.routesURI = {
       matches: 'matches',
+      players: 'players',
     };
 
     if (this.asyncType !== 'promise' && this.asyncType !== 'observable') {
@@ -77,9 +79,11 @@ class PubgApi {
     */
     this.requestAPI = (shard, route, params) => new Promise((resolve, reject) => {
       let queryParams = '';
-      Object.keys(params).forEach((key) => {
-        queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
-      });
+      if (params) {
+        Object.keys(params).forEach((key) => {
+          queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
+        });
+      }
       const headers = {
         Accept: 'application/vnd.api+json',
         Authorization: `Bearer ${this.apiKey}`,
@@ -110,6 +114,7 @@ class PubgApi {
     });
 
     /**
+    * @deprecated
     * Loads matches for the default shard. You can specify filters, page info and sorting type
     *
     * https://developer.playbattlegrounds.com/docs/en/matches.html#/Matches/get_matches
@@ -122,38 +127,51 @@ class PubgApi {
     * - offset : Paging
     * - limit : Number of results max
     * - sort: 'createdAt' or '-createdAt'. Default: createdAt (ascending)
+    * @param {string} shard - The shard id. If not specifed, calls the default shard.
     * @returns A Promise with the result or an error
     */
     this.loadMatches = (params = {
-      gameMode: undefined,
-      playerIds: undefined,
-      createdAtStart: undefined,
-      createdAtEnd: undefined,
       offset: 0,
       limit: 5,
       sort: 'createdAt',
-    }, shard = this.defaultShard) => {
-      const computedFilters = {};
-      const paramFilters = {
-        gameMode: 'filter[gameMode]',
-        playerIds: 'filter[playerIds]',
-        createdAtEnd: 'filter[createdAt-end]',
-        createdAtStart: 'filter[createdAt-start]',
-        sort: 'sort',
-        offset: 'page[offset]',
-        limit: 'page[limit]',
-      };
-      Object.keys(params).forEach((key) => {
-        if (params[key] !== undefined) {
-          computedFilters[paramFilters[key]] = params[key];
-        }
-      });
-      return this.wrapAsync(this.requestAPI(
+    }, shard = this.defaultShard) =>
+      this.wrapAsync(this.requestAPI(
         shard,
         this.routesURI.matches,
-        Object.keys(computedFilters).length ? computedFilters : undefined,
+        mapParams.map(params, mapParams.maps.matches),
       ));
-    };
+
+    /**
+    * Searches matches for the default shard. You can specify filters, page info and sorting type
+    *
+    * https://documentation.playbattlegrounds.com/en/players.html#/Players/get_players
+    *
+    * @param {object} params - An object with one or many of the following params:
+    * - playerNames : in game name (IGN) of a player. Separated by coma.
+    * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by coma.
+    * @param {string} shard - The shard id. If not specifed, calls the default shard.
+     * @returns A Promise with the result or an error
+    */
+    this.searchPlayers = (params, shard = this.defaultShard) =>
+      this.wrapAsync(this.requestAPI(
+        shard,
+        this.routesURI.players,
+        mapParams.map(params, mapParams.maps.players),
+      ));
+
+    /**
+    * Searches matches for the default shard. You can specify filters, page info and sorting type
+    *
+    * https://documentation.playbattlegrounds.com/en/players.html#/Players/get_players
+    *
+    * @param {object} params - An object with one or many of the following params:
+    * - playerNames : in game name (IGN) of a player. Separated by coma.
+    * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by coma.
+    * @param {string} shard - The shard id. If not specifed, calls the default shard.
+     * @returns A Promise with the result or an error
+    */
+    this.loadPlayerById = (playerId, shard = this.defaultShard) =>
+      this.wrapAsync(this.requestAPI(shard, `${this.routesURI.players}/${playerId}`));
 
     /**
     * Loads a single match within the default shard, given the id.
@@ -165,7 +183,7 @@ class PubgApi {
     * @returns A Promise with the result or an error
     */
     this.loadMatchById = (matchId, shard = this.defaultShard) =>
-      this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
+      this.wrapAsync(this.requestAPI(shard, `${this.routesURI.matches}/${matchId}`));
 
 
     /**
@@ -187,7 +205,7 @@ class PubgApi {
       setTimeout(() => {
         const assetData = parsedData.included;
         const returnTelemetryURLs = [];
-        for (let i = 0; i < assetData.length; i++) {
+        for (let i = 0; i < assetData.length; i += 1) {
           const obj = assetData[i];
           if (obj.type === 'asset') {
             returnTelemetryURLs.push(obj.attributes.URL);
