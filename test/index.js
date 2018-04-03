@@ -91,8 +91,8 @@ describe('#matches endpoint', function() {
       })
       .then(match => {
         expect(match).to.be.not.null;
-        expect(match.data).to.exist;
-        expect(match.data.type).to.equal('match');
+        expect(match.rosters).to.exist;
+        expect(match.rosters.length).to.be.greaterThan(1);
         done();
       })
       .catch(err => done(err));
