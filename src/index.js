@@ -165,7 +165,7 @@ class PubgApi {
     * @returns A Promise with the result or an error
     */
     this.loadMatchById = (matchId, shard = this.defaultShard) =>
-      return this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
+      this.wrapAsync(this.requestAPI(shard, this.routesURI.matches + matchId));
 
 
     /**
@@ -173,24 +173,27 @@ class PubgApi {
     */
 
     /**
-    * Queries an object of match data(s) for the Telemetry URL - or multiple if provided with multiple matches
+    * Queries an object of match data(s) for the Telemetry URL
+    * or multiple if provided with multiple matches
     *
     * https://developer.playbattlegrounds.com/docs/en/telemetry.html#telemetry-events
     *
-    * @param {object} parsedData - An object with match data attained through loadMatches, loadMatchByID or otherwise provided
+    * @param {object} parsedData - An object with match data attained through
+    * loadMatches, loadMatchByID or otherwise provided
     *
     * @returns A Promise with the result or an error
     */
-    this.findTelemetryURLs = (parsedData) => new Promise((resolve, reject) => {
+    this.findTelemetryURLs = parsedData => new Promise((resolve, reject) => {
       setTimeout(() => {
-        let assetData = parsedData.included;
-        let returnTelemetryURLs = [];
-        for each (obj in assetData){
-          if (obj.type == 'asset'){
-            returnTelemetryURLs.push(obj.attributes.URL)
+        const assetData = parsedData.included;
+        const returnTelemetryURLs = [];
+        for (let i = 0; i < assetData.length; i++) {
+          const obj = assetData[i];
+          if (obj.type === 'asset') {
+            returnTelemetryURLs.push(obj.attributes.URL);
           }
         }
-        if (!returnTelemetryURLs.length){
+        if (!returnTelemetryURLs.length) {
           reject(new Error('No Telemetry URLs Found'));
         }
         resolve(returnTelemetryURLs);
@@ -206,15 +209,15 @@ class PubgApi {
     *
     * @returns A Promise with the result or an error
     */
-    this.loadTelemetry = (url) => new Promise((resolve, reject) => {
-      telemetryPath = url.replace(this.telemetryURL, '');
+    this.loadTelemetry = url => new Promise((resolve, reject) => {
+      const telemetryPath = url.replace(this.telemetryURL, '');
       const headers = {
         Accept: 'application/vnd.api+json',
       };
       let rawData = '';
       const req = https.get({
         hostname: this.telemetryURL,
-        path: url,
+        path: telemetryPath,
         headers,
       }, (res) => {
         res.setEncoding('utf8');
@@ -265,10 +268,10 @@ module.exports = PubgApi;
 * apiInstance
 *   .loadMatches(options)
 *   .then((matches) => {
-*     return findTelemetryURLs(matches);
+*     return apiInstance.findTelemetryURLs(matches);
 *   })
 *   .then((urls) => {
-*     return loadTelemetry(urls[0]);
+*     return apiInstance.loadTelemetry(urls[0]);
 *   })
 *   .then((telemetry) => {
 *     //do something
