@@ -34,7 +34,7 @@ const apiInstance = new Pubgapi('<apiKey>');
 ```
 The module exposes a class that represents an instance of the api, given an [official API key](https://developer.playbattlegrounds.com/) that you must provide.
 
-You can then interract with the instance of the API. All routes use promises by defaut. 
+You can then interract with the instance of the API. All routes use promises by default. 
 
 For example :
 ```javascript
