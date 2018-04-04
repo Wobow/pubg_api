@@ -157,8 +157,8 @@ class PubgApi {
   *
   * @param {{playerName: string, playerIds: string}} params - An object with one or
   * many of the following params:
-  * - playerNames : in game name (IGN) of a player. Separated by coma.
-  * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by coma.
+  * - playerNames : in game name (IGN) of a player. Separated by comma.
+  * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by comma.
   * @param {string} shard - The shard id. If not specifed, calls the default shard.
   * @returns {Promise<any>} A Promise with the result or an error
   */
@@ -176,8 +176,8 @@ class PubgApi {
   * https://documentation.playbattlegrounds.com/en/players.html#/Players/get_players
   *
   * @param {object} params - An object with one or many of the following params:
-  * - playerNames : in game name (IGN) of a player. Separated by coma.
-  * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by coma.
+  * - playerNames : in game name (IGN) of a player. Separated by comma.
+  * - playerIds : a list of player ids (e.g. account.adadadadaadadadad) separated by comma.
   * @param {string} shard - The shard id. If not specifed, calls the default shard.
     * @returns {Promise<any>} A Promise with the result or an error
   */
