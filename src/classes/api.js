@@ -15,6 +15,83 @@ const Match = require('./match');
  *  - Kyle Ruscigno <kyleruscigno@gmail.com> : https://github.com/kyleruscigno
  */
 
+
+/**
+* class for limiting and queueing API requests
+*/
+class Limiter {
+  /**
+  * Sets up the Rate Limiter
+  * @param {boolean} enabled - whether to use rate limiting
+  * @param {int} tokenRate - Your amount of API request tokens per minute
+  *
+  */
+
+  constructor(enabled, tokenRate) {
+    this.items = [];
+    this.enabled = enabled;
+    this.remaining = tokenRate;
+    this.refillRate = (6000 / this.remaining);
+    this.resetTime = this.refillRate;
+    this.release();
+  }
+
+  /**
+  * Called from requestAPI, updates the remaining request tokens
+  * and time to refill from any response headers
+  */
+  update(remaining, resetTime) {
+    this.remaining = remaining;
+    this.resetTime = resetTime / 1000000; //rate time is in nanoseconds - convert to milliseconds 
+  }
+
+  /**
+  * Defer an API Request until request tokens are available
+  * if available or rate limiting is not enabled, return immediately
+  */
+  defer() {
+    if (this.enabled && this.remaining < 1) {
+      return new Promise((resolve, reject) => {
+        this.items.push(resolve);
+      });
+    }
+    return Promise.resolve();
+  }
+
+  /**
+  * Remove a Deferred Request from the queue (FIFO)
+  * resolve the defer() promises resolve function allowing requestAPI to continue
+  * update remaining tokens since pending request will subtract
+  */
+  finish() {
+    if (this.items.length) {
+      this.remaining -= 1;
+      const resolve = this.items.shift();
+      resolve();
+    }
+  }
+
+  /**
+  * Infinite Loop, called every time a rate token generates
+  * Finish as many deferred API requests as possible and then reschedule
+  * If update() was called in the interim, resetTime can be smaller than refill rate
+  */
+  release() {
+    if (!this.enabled) return;
+    const self = this;
+    setTimeout( function() {
+      self.remaining += 1;
+      const remaining = self.remaining;
+      for (let i = 0; i < remaining; i += 1) {
+        self.finish();
+      }
+      self.release();
+    }, self.resetTime);
+    this.resetTime = this.refillRate;
+  }
+}
+
+
 class PubgApi {
   /**
   * Sets up the api key to use, and the default shard to request.
@@ -40,6 +117,8 @@ class PubgApi {
   constructor(apiKey, options = {
     asyncType: 'promise',
     defaultShard: 'pc-na',
+    deferRequests: true,
+    tokenRate: 10,
   }) {
     this.apiKey = apiKey;
     this.apiURL = 'api.playbattlegrounds.com';
@@ -50,6 +129,7 @@ class PubgApi {
       matches: 'matches',
       players: 'players',
     };
+    this.limiter = new Limiter(options.deferRequests || true, options.tokenRate || 10);
 
     if (this.asyncType !== 'promise' && this.asyncType !== 'observable') {
       throw new Error('Unknown async type. Should be promise or observable');
@@ -78,7 +158,25 @@ class PubgApi {
   }
 
   /**
+  * Sets whether or not API Requests should be deferred
+  * until their is available request tokens
+  * restarts the refill/queue loop if it was previously off
+  *
+  * @param {boolean} enabled - whether to use rate limiting
+  * @param {int} tokenRate - Your amount of API request tokens per minute
+  */
+  setRateLimiting(enabled, tokenRate) {
+    this.limiter.enabled = enabled;
+    this.limiter.refillRate = (6000 / tokenRate);
+    this.limiter.release();
+  }
+
+  /**
   * Sends a request to the pubg api server, and returns a promise with the result.
+  *
+  * Places an API request on the defer queue (if enabled)
+  * If available request tokens it will process immediately
+  * otherwise, adds to queue and resolved in order of requests
   *
   * @param {string} shard - The shard to request.
   * @param {string} route - The URI to call. Corresponds to the part of the route after the shard.
@@ -88,40 +186,44 @@ class PubgApi {
   * @returns {Promise<any>} A promise with the result, or an error
   */
   requestAPI(shard, route, params) {
-    return new Promise((resolve, reject) => {
-      let queryParams = '';
-      if (params) {
-        Object.keys(params).forEach((key) => {
-          queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
-        });
-      }
-      const headers = {
-        Accept: 'application/vnd.api+json',
-        Authorization: `Bearer ${this.apiKey}`,
-      };
-      let rawData = '';
-      const req = https.get({
-        hostname: this.apiURL,
-        path: `/shards/${shard}/${route}${queryParams}`,
-        headers,
-      }, (res) => {
-        res.setEncoding('utf8');
-        res.on('data', (data) => {
-          rawData += data;
-        });
-        res.on('end', () => {
-          try {
-            const parsedData = JSON.parse(rawData);
-            if (res.statusCode >= 400) {
-              return reject(parsedData);
+    return this.limiter.defer().then(() => {
+      return new Promise((resolve, reject) => {
+        let queryParams = '';
+        if (params) {
+          Object.keys(params).forEach((key) => {
+            queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
+          });
+        }
+        const headers = {
+          Accept: 'application/vnd.api+json',
+          Authorization: `Bearer ${this.apiKey}`,
+        };
+        let rawData = '';
+        const req = https.get({
+          hostname: this.apiURL,
+          path: `/shards/${shard}/${route}${queryParams}`,
+          headers,
+        }, (res) => {
+          res.setEncoding('utf8');
+          const resheaders = res.headers;
+          this.limiter.update(resheaders['X-RateLimit-Remaining'], resheaders['X-RateLimit-Reset']);
+          res.on('data', (data) => {
+            rawData += data;
+          });
+          res.on('end', () => {
+            try {
+              const parsedData = JSON.parse(rawData);
+              if (res.statusCode >= 400) {
+                return reject(parsedData);
+              }
+              return resolve(parsedData);
+            } catch (err) {
+              return reject(err);
             }
-            return resolve(parsedData);
-          } catch (err) {
-            return reject(err);
-          }
+          });
         });
+        req.on('error', e => reject(e));
       });
-      req.on('error', e => reject(e));
     });
   }
 
