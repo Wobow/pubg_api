@@ -32,17 +32,14 @@ class Limiter {
     this.enabled = enabled;
     this.remaining = tokenRate;
     this.refillRate = (6000 / this.remaining);
-    this.resetTime = this.refillRate;
     this.release();
   }
 
   /**
   * Called from requestAPI, updates the remaining request tokens
-  * and time to refill from any response headers
   */
-  update(remaining, resetTime) {
+  update(remaining) {
     this.remaining = remaining;
-    this.resetTime = resetTime / 1000000; //rate time is in nanoseconds - convert to milliseconds 
   }
 
   /**
@@ -74,20 +71,14 @@ class Limiter {
   /**
   * Infinite Loop, called every time a rate token generates
   * Finish as many deferred API requests as possible and then reschedule
-  * If update() was called in the interim, resetTime can be smaller than refill rate
   */
   release() {
     if (!this.enabled) return;
-    const self = this;
-    setTimeout( function() {
-      self.remaining += 1;
-      const remaining = self.remaining;
-      for (let i = 0; i < remaining; i += 1) {
-        self.finish();
-      }
-      self.release();
-    }, self.resetTime);
-    this.resetTime = this.refillRate;
+    for (let i = 0; i < this.remaining; i += 1) {
+      this.finish();
+    }
+    this.remaining += 1;
+    setTimeout(this.release(), this.refillRate);
   }
 }
 
@@ -206,7 +197,7 @@ class PubgApi {
         }, (res) => {
           res.setEncoding('utf8');
           const resheaders = res.headers;
-          this.limiter.update(resheaders['X-RateLimit-Remaining'], resheaders['X-RateLimit-Reset']);
+          this.limiter.update(resheaders['X-RateLimit-Remaining']);
           res.on('data', (data) => {
             rawData += data;
           });
