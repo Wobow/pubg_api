@@ -5,8 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "test": "mocha --reporter spec",
-    "lint": "eslint src/**/*.js",
-    "prepublish": "npm run lint && npm test"
+    "lint": "eslint src/**/*.js"
   },
   "keywords": [
     "pubg",
