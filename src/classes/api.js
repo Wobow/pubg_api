@@ -73,7 +73,12 @@ class Limiter {
   * Finish as many deferred API requests as possible and then reschedule
   */
   release() {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      for (let i = 0; i < this.items.length; i += 1) {
+        this.finish();
+      }
+      return;
+    }
     for (let i = 0; i < this.remaining; i += 1) {
       this.finish();
     }
