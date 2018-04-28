@@ -124,6 +124,7 @@ class PubgApi {
     this.routesURI = {
       matches: 'matches',
       players: 'players',
+      samples: 'samples',
     };
     this.limiter = new Limiter(options.deferRequests || true, options.tokenRate || 10);
 
@@ -245,6 +246,25 @@ class PubgApi {
       shard,
       this.routesURI.matches,
       mapParams.map(params, mapParams.maps.matches),
+    ));
+  }
+
+  /**
+  * Loads API-defined sample set for the default shard, containing random matches.
+  * You can specify filters
+  *
+  * https://documentation.playbattlegrounds.com/en/samples.html#/samples/get_samples
+  *
+  * @param {object} params - An object with one or many of the following params:
+  * - createdAtStart : Must occur atleast 24 hours in the past. Default: now() - 24hrs
+  * @param {string} shard - The shard id. If not specifed, calls the default shard.
+  * @returns {Promise<any>} A Promise with the result or an error
+  */
+  loadSamples(params, shard = this.defaultShard) {
+    return this.wrapAsync(this.requestAPI(
+      shard,
+      this.routesURI.samples,
+      mapParams.map(params. mapParams.maps.samples),
     ));
   }
 

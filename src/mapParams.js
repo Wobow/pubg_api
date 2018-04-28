@@ -13,6 +13,9 @@ const mapParams = {
       playerIds: 'filter[playerIds]',
       playerNames: 'filter[playerNames]',
     },
+    samples: {
+      createdAtStart: 'filter[createdAt-start]',
+    }
   },
   map: (params, map) => {
     if (!params || !map) {
