@@ -10,6 +10,7 @@ It includes helpers to do the following :
 **Matches**
 - Load and filter matches
 - Load a specific match
+- Find players match history
 - Load Telemetry Files
 
 **General API**
@@ -46,9 +47,12 @@ You can then interract with the instance of the API. All routes use promises by 
 For example :
 ```javascript
 apiInstance
-    .loadMatches(options)
-    .then(matches => {
+    .loadSamples(options)
+    .then(samples => {
         // success
+        // Returns JSON object (see PUBG Developer Docs)
+        // ex: attaining a match id from the sample set
+        return loadMatchById(samples.relationships.matches.data[0]);
     }, err => {
         // handle error
     });
@@ -97,7 +101,7 @@ In addition, all player and matches routes have an optional second parameter whe
 
 **Rate Limiting**
 Rate limiting is enabled by default.
-When enabled all API requests (matches or players route) will return a promise (or observable) and store that promise inside of an internal queue. When the user is within their request limit it will resolve these promises on a First in First out basis at an interval defined by the tokenRate provided.
+When enabled all API requests (matches, samples or players route) will return a promise (or observable) and store that promise inside of an internal queue. When the user is within their request limit it will resolve these promises on a First in First out basis at an interval defined by the tokenRate provided.
 To override this functionality you can once again instantiate the API instance using the options parameters:
 ```javascript
 const apiInstance = new PubgApi('<apiKey>', {deferRequests: false});
@@ -119,6 +123,7 @@ This tab highlight the status of each route and function attached to it.
 | /players/{id}      | `PubgApi.loadPlayerById`     | Up to date       | ^1.0.0      |
 | telemetry          | `PubgApi.loadTelemetry`      | Up to date       | ^0.6.0      |
 | /status            | `PubgApi.healthStatus`       | Up to date       | ^0.0.1      |
+| /samples           | `PubgApi.loadSamples`        | Up to data       | ^1.0.x      |
 
 ## Contributing
 
