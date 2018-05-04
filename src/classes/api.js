@@ -2,6 +2,7 @@ const https = require('https');
 const rx = require('rxjs');
 const mapParams = require('../mapParams.js');
 const Match = require('./match');
+const url = require('url');
 
 /**
  *  PUBG API wrapper
@@ -28,8 +29,10 @@ class Limiter {
   */
 
   constructor(enabled, tokenRate) {
+    console.log('limiter created');
     this.items = [];
     this.enabled = enabled;
+    this.maxTokens = tokenRate;
     this.remaining = tokenRate;
     this.refillRate = (6000 / this.remaining);
     this.release();
@@ -73,6 +76,9 @@ class Limiter {
   * Finish as many deferred API requests as possible and then reschedule
   */
   release() {
+    const self = this;
+    console.log('releasing');
+    console.log(this.remaining + ' remaining');
     if (!this.enabled) {
       for (let i = 0; i < this.items.length; i += 1) {
         this.finish();
@@ -82,8 +88,10 @@ class Limiter {
     for (let i = 0; i < this.remaining; i += 1) {
       this.finish();
     }
-    this.remaining += 1;
-    setTimeout(this.release(), this.refillRate);
+    if (this.remaining < this.maxTokens) {
+      this.remaining += 1;
+    }
+    setTimeout(() => this.release, this.refillRate);
   }
 }
 
@@ -118,7 +126,6 @@ class PubgApi {
   }) {
     this.apiKey = apiKey;
     this.apiURL = 'api.playbattlegrounds.com';
-    this.telemetryURL = 'telemetry-cdn.playbattlegrounds.com';
     this.defaultShard = options.defaultShard || 'pc-na';
     this.asyncType = options.asyncType || 'promise';
     this.routesURI = {
@@ -264,7 +271,7 @@ class PubgApi {
     return this.wrapAsync(this.requestAPI(
       shard,
       this.routesURI.samples,
-      mapParams.map(params. mapParams.maps.samples),
+      mapParams.map(params, mapParams.maps.samples),
     ));
   }
 
@@ -322,18 +329,17 @@ class PubgApi {
   */
 
   /**
-  * Queries an object of match data(s) for the Telemetry URL
-  * or multiple if provided with multiple matches
+  * Queries an object of match data for the Telemetry URL
   *
   * https://developer.playbattlegrounds.com/docs/en/telemetry.html#telemetry-events
   *
   * @param {object} parsedData - An object with match data attained through
-  * loadMatches, loadMatchByID or otherwise provided
+  * loadMatchByID or otherwise provided
   *
   * @returns {Promise<any>} A Promise with the result or an error
   */
   findTelemetryURLs(parsedData) {
-    return this.wrapAsync(async () => {
+    return this.wrapAsync(new Promise((resolve, reject) => {
       const assetData = parsedData.included;
       const returnTelemetryURLs = [];
       for (let i = 0; i < assetData.length; i += 1) {
@@ -343,10 +349,10 @@ class PubgApi {
         }
       }
       if (!returnTelemetryURLs.length) {
-        throw new Error('No Telemetry URLs Found');
+        reject('No Telemetry URLs Found');
       }
-      return returnTelemetryURLs;
-    });
+      resolve(returnTelemetryURLs);
+    }));
   }
 
   /**
@@ -358,16 +364,16 @@ class PubgApi {
   *
   * @returns {Promise<any>} A Promise with the result or an error
   */
-  loadTelemetry(url) {
+  loadTelemetry(telemetryURL) {
     return this.wrapAsync(new Promise((resolve, reject) => {
-      const telemetryPath = url.replace(this.telemetryURL, '');
+      const telemetryPath = url.parse(telemetryURL.toString());
       const headers = {
         Accept: 'application/vnd.api+json',
       };
       let rawData = '';
       const req = https.get({
-        hostname: this.telemetryURL,
-        path: telemetryPath,
+        hostname: telemetryPath.hostname,
+        path: telemetryPath.pathname,
         headers,
       }, (res) => {
         res.setEncoding('utf8');
@@ -411,25 +417,3 @@ class PubgApi {
 
 module.exports = PubgApi;
 
-/**
-*=== Example Call Patterns ===
-*
-* const Pubgapi = require('pubg-api');
-* const apiInstance = new Pubgapi('<apiKey>');
-*
-* apiInstance
-*   .loadMatches(options)
-*   .then((matches) => {
-*     return apiInstance.findTelemetryURLs(matches);
-*   })
-*   .then((urls) => {
-*     return apiInstance.loadTelemetry(urls[0]);
-*   })
-*   .then((telemetry) => {
-*     //do something
-*   })
-*   .catch((err) => {
-*     console.error(err)
-*   });
-*
-*/
