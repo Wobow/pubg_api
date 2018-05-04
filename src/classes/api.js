@@ -169,6 +169,7 @@ class PubgApi {
   setRateLimiting(enabled, tokenRate) {
     this.limiter.enabled = enabled;
     this.limiter.refillRate = (6000 / tokenRate);
+    this.limiter.maxTokens = tokenRate;
     this.limiter.release();
   }
 
