@@ -29,7 +29,6 @@ class Limiter {
   */
 
   constructor(enabled, tokenRate) {
-    console.log('limiter created');
     this.items = [];
     this.enabled = enabled;
     this.maxTokens = tokenRate;
@@ -77,8 +76,6 @@ class Limiter {
   */
   release() {
     const self = this;
-    console.log('releasing');
-    console.log(this.remaining + ' remaining');
     if (!this.enabled) {
       for (let i = 0; i < this.items.length; i += 1) {
         this.finish();
