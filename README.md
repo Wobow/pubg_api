@@ -10,6 +10,11 @@ It includes helpers to do the following :
 **Matches**
 - Load and filter matches
 - Load a specific match
+- Find players match history
+- Load Telemetry Files
+
+**General API**
+- Handle API Rate limits
 
 
 ## Table of contents
@@ -26,6 +31,7 @@ It includes helpers to do the following :
 
 ## Usage
 
+### Importation
 After installation, you can import the module to your project using require. 
 ```javascript
 const Pubgapi = require('pubg-api');
@@ -34,24 +40,39 @@ const apiInstance = new Pubgapi('<apiKey>');
 ```
 The module exposes a class that represents an instance of the api, given an [official API key](https://developer.playbattlegrounds.com/) that you must provide.
 
+
+### Making Calls
 You can then interract with the instance of the API. All routes use promises by default. 
 
 For example :
 ```javascript
 apiInstance
-    .loadMatches(options)
-    .then(matches => {
+    .loadSamples(options)
+    .then(samples => {
         // success
+        // Returns JSON object (see PUBG Developer Docs)
+        // ex: attaining a match id from the sample set
+        return loadMatchById(samples.relationships.matches.data[0]);
     }, err => {
         // handle error
     });
 ```
 
+### Customization
+By providing an optional second parameter on creation of the API instance you can override a number of default settings. This parameter is an object with the following keys:
+- `asyncType`  whether to return Promises or Observables [default promise]
+- `defaultShard` The server shard to query [default pc-na]
+- `deferRequests` Whether to enable rate limiting, by deferring api requests until your limit allows for another API call [default true]
+- `tokenRate` The custom rate limit for your app in requests per minute (see your developer account) [default 10]
+
+More details on each of these customization options below:
+
+**Observables**
 You can force the wrapper to return [rxjs' Observables](https://github.com/reactivex/rxjs) only by specifying with the asyncType options:
 ```javascript
 const apiInstance = new PubgApi('<apiKey>', {asyncType: 'observable'});
 ```
-or 
+or (after instance creation)
 ```javascript
 apiInstance.asyncType = 'observable';
 ```
@@ -66,6 +87,30 @@ apiInstance
     });
 ```
 
+**Shard**
+You can specify the default shard by using the optional parameter:
+```javascript
+const apiInstance = new PubgApi('<apiKey>', {defaultShard: 'selected-shard'});
+```
+or (after instance creation)
+```javascript
+apiInstance.defaultShard = 'selected-shard';
+```
+
+In addition, all player and matches routes have an optional second parameter where you can specify a shard to query for one individual api call
+
+**Rate Limiting**
+Rate limiting is enabled by default.
+When enabled all API requests (matches, samples or players route) will return a promise (or observable) and store that promise inside of an internal queue. When the user is within their request limit it will resolve these promises on a First in First out basis at an interval defined by the tokenRate provided.
+To override this functionality you can once again instantiate the API instance using the options parameters:
+```javascript
+const apiInstance = new PubgApi('<apiKey>', {deferRequests: false});
+```
+To enable or disable rate limiting after instantiation, use the setRateLimiting() function, this will ensure that all currently deferred requests are released (if disabling) or restarts the API rate loop (if enabling)
+```javascript
+apiInstance.setRateLimiting(enabled, tokenRate);
+```
+
 ## Status
 
 This tab highlight the status of each route and function attached to it.
@@ -78,6 +123,7 @@ This tab highlight the status of each route and function attached to it.
 | /players/{id}      | `PubgApi.loadPlayerById`     | Up to date       | ^1.0.0      |
 | telemetry          | `PubgApi.loadTelemetry`      | Up to date       | ^0.6.0      |
 | /status            | `PubgApi.healthStatus`       | Up to date       | ^0.0.1      |
+| /samples           | `PubgApi.loadSamples`        | Up to data       | ^1.0.x      |
 
 ## Contributing
 
@@ -130,7 +176,9 @@ The goal of this wrapper is to simplify access to the API, and give a broader sp
 
 This includes developping functions that computes multiple API calls and responses.
 
-- [ ] Implement [Telemetry](https://developer.playbattlegrounds.com/docs/en/telemetry.html) 
+- [x] Implement [Telemetry](https://developer.playbattlegrounds.com/docs/en/telemetry.html) 
 - [x] Implement [rxjs observable](https://github.com/reactivex/rxjs) alternative to promise
-- [ ] Allow selecting a specific shard for each call, instead of setting a default shard
-- [ ] Wrap multiple shard functions
+- [x] Implement rate limiting
+- [x] Allow selecting a specific shard for each call, instead of setting a default shard
+- [x] Wrap multiple shard functions
+- [ ] Helper functions to quickly ascertain match data (winning roster, etc.)

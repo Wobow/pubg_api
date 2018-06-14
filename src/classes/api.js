@@ -2,6 +2,7 @@ const https = require('https');
 const rx = require('rxjs');
 const mapParams = require('../mapParams.js');
 const Match = require('./match');
+const url = require('url');
 
 /**
  *  PUBG API wrapper
@@ -14,6 +15,82 @@ const Match = require('./match');
  *  - Alan Balbo <alan.balbo@gmail.com> : https://github.com/Wobow
  *  - Kyle Ruscigno <kyleruscigno@gmail.com> : https://github.com/kyleruscigno
  */
+
+
+/**
+* class for limiting and queueing API requests
+*/
+class Limiter {
+  /**
+  * Sets up the Rate Limiter
+  * @param {boolean} enabled - whether to use rate limiting
+  * @param {int} tokenRate - Your amount of API request tokens per minute
+  *
+  */
+
+  constructor(enabled, tokenRate) {
+    this.items = [];
+    this.enabled = enabled;
+    this.maxTokens = tokenRate;
+    this.remaining = tokenRate;
+    this.refillRate = (6000 / this.remaining);
+    this.release();
+  }
+
+  /**
+  * Called from requestAPI, updates the remaining request tokens
+  */
+  update(remaining) {
+    this.remaining = remaining;
+  }
+
+  /**
+  * Defer an API Request until request tokens are available
+  * if available or rate limiting is not enabled, return immediately
+  */
+  defer() {
+    if (this.enabled && this.remaining < 1) {
+      return new Promise((resolve, reject) => {
+        this.items.push(resolve);
+      });
+    }
+    return Promise.resolve();
+  }
+
+  /**
+  * Remove a Deferred Request from the queue (FIFO)
+  * resolve the defer() promises resolve function allowing requestAPI to continue
+  * update remaining tokens since pending request will subtract
+  */
+  finish() {
+    if (this.items.length) {
+      this.remaining -= 1;
+      const resolve = this.items.shift();
+      resolve();
+    }
+  }
+
+  /**
+  * Infinite Loop, called every time a rate token generates
+  * Finish as many deferred API requests as possible and then reschedule
+  */
+  release() {
+    if (!this.enabled) {
+      for (let i = 0; i < this.items.length; i += 1) {
+        this.finish();
+      }
+      return;
+    }
+    for (let i = 0; i < this.remaining; i += 1) {
+      this.finish();
+    }
+    if (this.remaining < this.maxTokens) {
+      this.remaining += 1;
+    }
+    setTimeout(() => this.release, this.refillRate);
+  }
+}
+
 
 class PubgApi {
   /**
@@ -40,16 +117,19 @@ class PubgApi {
   constructor(apiKey, options = {
     asyncType: 'promise',
     defaultShard: 'pc-na',
+    deferRequests: true,
+    tokenRate: 10,
   }) {
     this.apiKey = apiKey;
     this.apiURL = 'api.playbattlegrounds.com';
-    this.telemetryURL = 'telemetry-cdn.playbattlegrounds.com';
     this.defaultShard = options.defaultShard || 'pc-na';
     this.asyncType = options.asyncType || 'promise';
     this.routesURI = {
       matches: 'matches',
       players: 'players',
+      samples: 'samples',
     };
+    this.limiter = new Limiter(options.deferRequests || true, options.tokenRate || 10);
 
     if (this.asyncType !== 'promise' && this.asyncType !== 'observable') {
       throw new Error('Unknown async type. Should be promise or observable');
@@ -78,7 +158,26 @@ class PubgApi {
   }
 
   /**
+  * Sets whether or not API Requests should be deferred
+  * until their is available request tokens
+  * restarts the refill/queue loop if it was previously off
+  *
+  * @param {boolean} enabled - whether to use rate limiting
+  * @param {int} tokenRate - Your amount of API request tokens per minute
+  */
+  setRateLimiting(enabled, tokenRate) {
+    this.limiter.enabled = enabled;
+    this.limiter.refillRate = (6000 / tokenRate);
+    this.limiter.maxTokens = tokenRate;
+    this.limiter.release();
+  }
+
+  /**
   * Sends a request to the pubg api server, and returns a promise with the result.
+  *
+  * Places an API request on the defer queue (if enabled)
+  * If available request tokens it will process immediately
+  * otherwise, adds to queue and resolved in order of requests
   *
   * @param {string} shard - The shard to request.
   * @param {string} route - The URI to call. Corresponds to the part of the route after the shard.
@@ -88,40 +187,44 @@ class PubgApi {
   * @returns {Promise<any>} A promise with the result, or an error
   */
   requestAPI(shard, route, params) {
-    return new Promise((resolve, reject) => {
-      let queryParams = '';
-      if (params) {
-        Object.keys(params).forEach((key) => {
-          queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
-        });
-      }
-      const headers = {
-        Accept: 'application/vnd.api+json',
-        Authorization: `Bearer ${this.apiKey}`,
-      };
-      let rawData = '';
-      const req = https.get({
-        hostname: this.apiURL,
-        path: `/shards/${shard}/${route}${queryParams}`,
-        headers,
-      }, (res) => {
-        res.setEncoding('utf8');
-        res.on('data', (data) => {
-          rawData += data;
-        });
-        res.on('end', () => {
-          try {
-            const parsedData = JSON.parse(rawData);
-            if (res.statusCode >= 400) {
-              return reject(parsedData);
+    return this.limiter.defer().then(() => {
+      return new Promise((resolve, reject) => {
+        let queryParams = '';
+        if (params) {
+          Object.keys(params).forEach((key) => {
+            queryParams += queryParams.length ? `&${key}=${params[key]}` : `?${key}=${params[key]}`;
+          });
+        }
+        const headers = {
+          Accept: 'application/vnd.api+json',
+          Authorization: `Bearer ${this.apiKey}`,
+        };
+        let rawData = '';
+        const req = https.get({
+          hostname: this.apiURL,
+          path: `/shards/${shard}/${route}${queryParams}`,
+          headers,
+        }, (res) => {
+          res.setEncoding('utf8');
+          const resheaders = res.headers;
+          this.limiter.update(resheaders['X-RateLimit-Remaining']);
+          res.on('data', (data) => {
+            rawData += data;
+          });
+          res.on('end', () => {
+            try {
+              const parsedData = JSON.parse(rawData);
+              if (res.statusCode >= 400) {
+                return reject(parsedData);
+              }
+              return resolve(parsedData);
+            } catch (err) {
+              return reject(err);
             }
-            return resolve(parsedData);
-          } catch (err) {
-            return reject(err);
-          }
+          });
         });
+        req.on('error', e => reject(e));
       });
-      req.on('error', e => reject(e));
     });
   }
 
@@ -147,6 +250,25 @@ class PubgApi {
       shard,
       this.routesURI.matches,
       mapParams.map(params, mapParams.maps.matches),
+    ));
+  }
+
+  /**
+  * Loads API-defined sample set for the default shard, containing random matches.
+  * You can specify filters
+  *
+  * https://documentation.playbattlegrounds.com/en/samples.html#/samples/get_samples
+  *
+  * @param {object} params - An object with one or many of the following params:
+  * - createdAtStart : Must occur atleast 24 hours in the past. Default: now() - 24hrs
+  * @param {string} shard - The shard id. If not specifed, calls the default shard.
+  * @returns {Promise<any>} A Promise with the result or an error
+  */
+  loadSamples(params, shard = this.defaultShard) {
+    return this.wrapAsync(this.requestAPI(
+      shard,
+      this.routesURI.samples,
+      mapParams.map(params, mapParams.maps.samples),
     ));
   }
 
@@ -204,18 +326,17 @@ class PubgApi {
   */
 
   /**
-  * Queries an object of match data(s) for the Telemetry URL
-  * or multiple if provided with multiple matches
+  * Queries an object of match data for the Telemetry URL
   *
   * https://developer.playbattlegrounds.com/docs/en/telemetry.html#telemetry-events
   *
   * @param {object} parsedData - An object with match data attained through
-  * loadMatches, loadMatchByID or otherwise provided
+  * loadMatchByID or otherwise provided
   *
   * @returns {Promise<any>} A Promise with the result or an error
   */
   findTelemetryURLs(parsedData) {
-    return this.wrapAsync(async () => {
+    return this.wrapAsync(new Promise((resolve, reject) => {
       const assetData = parsedData.included;
       const returnTelemetryURLs = [];
       for (let i = 0; i < assetData.length; i += 1) {
@@ -225,10 +346,10 @@ class PubgApi {
         }
       }
       if (!returnTelemetryURLs.length) {
-        throw new Error('No Telemetry URLs Found');
+        reject('No Telemetry URLs Found');
       }
-      return returnTelemetryURLs;
-    });
+      resolve(returnTelemetryURLs);
+    }));
   }
 
   /**
@@ -240,16 +361,16 @@ class PubgApi {
   *
   * @returns {Promise<any>} A Promise with the result or an error
   */
-  loadTelemetry(url) {
+  loadTelemetry(telemetryURL) {
     return this.wrapAsync(new Promise((resolve, reject) => {
-      const telemetryPath = url.replace(this.telemetryURL, '');
+      const telemetryPath = url.parse(telemetryURL.toString());
       const headers = {
         Accept: 'application/vnd.api+json',
       };
       let rawData = '';
       const req = https.get({
-        hostname: this.telemetryURL,
-        path: telemetryPath,
+        hostname: telemetryPath.hostname,
+        path: telemetryPath.pathname,
         headers,
       }, (res) => {
         res.setEncoding('utf8');
@@ -293,25 +414,3 @@ class PubgApi {
 
 module.exports = PubgApi;
 
-/**
-*=== Example Call Patterns ===
-*
-* const Pubgapi = require('pubg-api');
-* const apiInstance = new Pubgapi('<apiKey>');
-*
-* apiInstance
-*   .loadMatches(options)
-*   .then((matches) => {
-*     return apiInstance.findTelemetryURLs(matches);
-*   })
-*   .then((urls) => {
-*     return apiInstance.loadTelemetry(urls[0]);
-*   })
-*   .then((telemetry) => {
-*     //do something
-*   })
-*   .catch((err) => {
-*     console.error(err)
-*   });
-*
-*/
